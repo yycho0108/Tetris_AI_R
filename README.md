@@ -3,6 +3,14 @@
 PyBrain offers a rich set of tools for machine-learning; I will implement a custom Tetris Environment, as well as tasks and agents, and observe its progress.
 
 ---
+## TO DO:
+
+- Implement Game Logic
+	- [x] Collision Checking
+	- [x] Block Definition
+	- [ ] Line-Ellimination
+	- [ ] Determine terminal state
+	- [ ] Move-down
 
 ## Documentation
 

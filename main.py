@@ -11,6 +11,18 @@ import numpy as np
 def random(n):
     return np.random.randint(n)
 
+
+blocks = [
+     [ [0,0,1,0,2,0,-1,0], [0,0,0,1,0,-1,0,-2], [0,0,1,0,2,0,-1,0], [0,0,0,1,0,-1,0,-2] ],
+     [ [0,0,1,0,0,1,1,1], [0,0,1,0,0,1,1,1], [0,0,1,0,0,1,1,1], [0,0,1,0,0,1,1,1] ],
+     [ [0,0,-1,0,0,-1,1,-1], [0,0,0,1,-1,0,-1,-1], [0,0,-1,0,0,-1,1,-1], [0,0,0,1,-1,0,-1,-1] ],
+     [ [0,0,-1,-1,0,-1,1,0], [0,0,-1,0,-1,1,0,-1], [0,0,-1,-1,0,-1,1,0], [0,0,-1,0,-1,1,0,-1] ],
+     [ [0,0,-1,0,1,0,-1,-1], [0,0,0,-1,0,1,-1,1], [0,0,-1,0,1,0,1,1], [0,0,0,-1,0,1,1,-1] ],
+     [ [0,0,1,0,-1,0,1,-1], [0,0,0,1,0,-1,-1,-1], [0,0,1,0,-1,0,-1,1], [0,0,0,-1,0,1,1,1] ],
+     [ [0,0,-1,0,1,0,0,1], [0,0,0,-1,0,1,1,0], [0,0,-1,0,1,0,0,-1], [0,0,-1,0,0,-1,0,1] ],
+]
+blocks = np.reshape(blocks,(7,4,4,2)) #type, rotation, 4 [points(x,y)]
+
 class TetrisBlock:
     #more like a container
     def __init__(self): #t = block type, defaults to random
@@ -30,7 +42,8 @@ class TetrisBlock:
 
 class TetrisState:
     def __init__(self,w,h):
-        self.board = np.zeros((h,w),dtype=np.bool)
+        self.w,self.h = w,h
+        self.board = np.zeros((h,w),dtype=np.int8)
         self.block = TetrisBlock()
         self.altBlock = random(7)
         self.acts = [
@@ -46,11 +59,12 @@ class TetrisState:
 
     def step(action):
         self.acts[action]()
+        val = self.hit()
+        if val == -1: #wall
         #check for collision/line removal/ etc
-
         if self.end:
             return -1
-        else
+        else:
             return 0
         #compute & return reward somehow
 
@@ -60,9 +74,13 @@ class TetrisState:
 
     def left(self):
         self.block.x -=1
+        if self.hit():
+            self.block.x += 1 #undo
 
     def right(self):
         self.block.x += 1
+        if self.hit():
+            self.block.y -= 1
 
     def down(self):
         self.block.y += 1
@@ -71,13 +89,26 @@ class TetrisState:
         self.altBlock = self.block.alt(self.altBlock)
 
     def drop(self):
-        while not self.hit():
+        while self.hit() == 0:
             self.block.y += 1
 
+    def hitside(self,x,y):
+        return x<0 or x >= self.w
+
+    def hitbottom(self,x,y):
+        return self.board[x][y] ==1 or y>=self.h
+         
+
     def hit(self):
-        #return wall, block, or none
-        #hit-test
-        pass
+        b = block[self.block.t][self.block.r]
+        for pt in b:
+            x = self.block.x + pt[0]
+            y = self.block.y + pt[1]
+            if not inbound(x,y):
+                return -1 # "WALL"
+            elif hitbottom(x,y):
+                return 1 #
+        return 0 #empty
 
     def recap(self):
         #builds a numeric representation of itself 
@@ -87,9 +118,11 @@ class TetrisState:
 
 class TetrisEnv(Environment):
     def __init__(self,w,h):
+        self.w = w
+        self.h = h
         self.indim = 6
         self.outdim = w*h+11
-        self.state = TetrisState()
+        self.state = TetrisState(w,h)
 
     def getSensors(self):
         return self.state.recap()
@@ -99,7 +132,7 @@ class TetrisEnv(Environment):
         return self.state.step(action)
 
     def reset(self):
-        self.state = TetrisState()
+        self.state = TetrisState(self.w, self.h)
         pass
 
     def end(self):
@@ -148,7 +181,7 @@ class TetrisTask(EpisodicTask):
 env = TetrisEnv(10,20) #Tetris
 task = TetrisTask(env)
 
-QNet = ActionValueNetwork();#fill in params -- ?
+QNet = ActionValueNetwork(10*20+11, 6);
 
 learner = NFQ(); #Q()?
 learner._setExplorer(EpsilonGreedyExplorer(0.2,decay=0.99))
