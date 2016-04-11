@@ -25,28 +25,31 @@ blocks = np.reshape(blocks,(7,4,4,2)) #type, rotation, 4 [points(x,y)]
 
 class TetrisBlock:
     #more like a container
-    def __init__(self): #t = block type, defaults to random
+    def __init__(self, t=random(7)): #t = block type, defaults to random
         # 7 = number of possible tetris blocks
-        self.t = random(7)
-        self.x=0
-        self.y=0
-        self.r=0
+        self.t = t
+        self.x=5 #middle of width
+        self.y=2 #not too low
+        self.r = random(4)
 
     def alt(self,t):
         #swap types
         self.t,t = t,self.t
         return t
+
     def recap(self):
         #type, rotation, x-y coord
-        return [self.t,self.r,self.x,self.y]
+        t = [0,0,0,0,0,0,0]
+        t[self.t] = 1
+        return t + [self.r, self.x,self.y]
 
 class TetrisState:
     def __init__(self,w,h):
         self.w,self.h = w,h
-        self.board = np.zeros((h,w),dtype=np.int8)
+        self.board = np.zeros((h,w),dtype=np.bool)
         self.block = TetrisBlock()
-        self.altBlock = random(7)
-        self.acts = [
+        self.nextBlock = random(7)
+        self.act = [
                 self.left,
                 self.right,
                 self.down,
@@ -57,10 +60,11 @@ class TetrisState:
 
         self.end = False
 
-    def step(action):
-        self.acts[action]()
-        val = self.hit()
-        if val == -1: #wall
+    def step(self,action):
+        action = int(action)
+        print "action : ", action
+        self.act[action]()
+        print "X : " , self.block.x, " Y : ", self.block.y
         #check for collision/line removal/ etc
         if self.end:
             return -1
@@ -71,50 +75,72 @@ class TetrisState:
     def rotate(self):
         #don't want to create a wrapper method -- for performance
         self.block.r = (self.block.r+1)%4
+        if self.hit():
+            self.block.r = (self.block.r+3)%4 #undo
 
     def left(self):
-        self.block.x -=1
+        self.block.x -= 1
         if self.hit():
             self.block.x += 1 #undo
 
     def right(self):
         self.block.x += 1
         if self.hit():
-            self.block.y -= 1
+            self.block.y -= 1 #undo
 
-    def down(self):
-        self.block.y += 1
-
-    def alt(self):
-        self.altBlock = self.block.alt(self.altBlock)
-
-    def drop(self):
-        while self.hit() == 0:
-            self.block.y += 1
-
-    def hitside(self,x,y):
-        return x<0 or x >= self.w
-
-    def hitbottom(self,x,y):
-        return self.board[x][y] ==1 or y>=self.h
-         
-
-    def hit(self):
-        b = block[self.block.t][self.block.r]
+    def fillBlock(self):
+        b = blocks[self.block.t][self.block.r]
+        print self.block.x, self.block.y
         for pt in b:
             x = self.block.x + pt[0]
             y = self.block.y + pt[1]
-            if not inbound(x,y):
-                return -1 # "WALL"
-            elif hitbottom(x,y):
-                return 1 #
-        return 0 #empty
+            print x,y
+            self.board[y][x] = True
+
+    def down(self):
+        self.block.y += 1
+        if self.hit():
+            self.block.y -= 1
+            self.fillBlock()
+            self.testLines()
+            #test for line-completion
+
+    def alt(self):
+        pass
+        #self.nextBlock = self.block.alt(self.nextBlock)
+
+    def drop(self):
+        while not self.hit():
+            self.block.y += 1
+        self.block.y -= 1
+        self.fillBlock()
+        self.testLines()
+
+    def inbound(self,x,y):
+        return 0<=x and x<self.w and 0<=y and y<self.h
+         
+    def hit(self):
+        b = blocks[self.block.t][self.block.r]
+        for pt in b:
+            x = self.block.x + pt[0]
+            y = self.block.y + pt[1]
+            if (not self.inbound(x,y)) or (self.board[y][x] is True):
+                return True # "WALL"
+        return False
+
+    def testLines(self): #not implemented
+        print self.board.astype(np.int8)
+        self.block = TetrisBlock(self.nextBlock)
+        self.nextBlock = random(7)
+        print "Testing Lines..."
+        pass
 
     def recap(self):
+        #print np.concatenate((self.board.flatten(),self.block.recap(),[self.nextBlock])) 
         #builds a numeric representation of itself 
         #may have to anticipate a dtype-collision
         #may have to convert?
-        return np.concatenate((self.board.flatten(),self.block.recap(),[self.altBlock])) 
+        return np.concatenate((self.board.flatten(),self.block.recap(),[self.nextBlock])) 
 
 class TetrisEnv(Environment):
     def __init__(self,w,h):
